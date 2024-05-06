@@ -1,20 +1,10 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION. All rights reserved.
-#
-# NVIDIA CORPORATION and its licensors retain all intellectual property
-# and proprietary rights in and to this software, related documentation
-# and any modifications thereto. Any use, reproduction, disclosure or
-# distribution of this software and related documentation without an express
-# license agreement from NVIDIA CORPORATION is strictly prohibited.
-#
-
 from omni.isaac.examples.base_sample import BaseSample
+from omni.isaac.core.utils.types import ArticulationAction
+from omni.isaac.core.utils.nucleus import get_assets_root_path
+from omni.isaac.core.utils.stage import add_reference_to_stage
+from omni.isaac.core.robots import Robot
 import numpy as np
-# Can be used to create a new cube or to point to an already existing cube in stage.
-from omni.isaac.core.objects import DynamicCuboid
-from omni.isaac.dynamic_control import _dynamic_control
-from pxr import UsdLux, Gf
-from omni.usd import get_context
-# Note: checkout the required tutorials at https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html
+import carb
 
 
 class HelloWorld(BaseSample):
@@ -23,53 +13,36 @@ class HelloWorld(BaseSample):
         return
 
     def setup_scene(self):
-
         world = self.get_world()
         world.scene.add_default_ground_plane()
-        fancy_cube = world.scene.add(
-            DynamicCuboid(
-                prim_path="/World/my_fancy_cube", # The prim path of the cube in the USD stage
-                name="fancy_cube", # The unique name used to retrieve the object from the scene later on
-                position=np.array([0, 0, 1.0]), # Using the current stage units which is in meters by default.
-                scale=np.array([0.5015, 0.5015, 0.5015]), # most arguments accept mainly numpy arrays.
-                color=np.array([0, 0, 1.0]), # RGB channels, going from 0-1
-            ))
-        
-         # Create a dome light
-        stage = get_context().get_stage()
-        light_path = "/World/fancy_dome_light"
-        light_prim = UsdLux.DomeLight.Define(stage, light_path)
-        light_prim.CreateIntensityAttr().Set(1.0)
-        light_prim.CreateColorAttr().Set(Gf.Vec3f(1.0, 1.0, 1.0))
-
+        assets_root_path = get_assets_root_path()
+        if assets_root_path is None:
+            carb.log_error("Could not find nucleus server with /Isaac folder")
+        asset_path = assets_root_path + "/Isaac/Robots/Jetbot/jetbot.usd"
+        add_reference_to_stage(usd_path=asset_path, prim_path="/World/Fancy_Robot")
+        jetbot_robot = world.scene.add(Robot(prim_path="/World/Fancy_Robot", name="fancy_robot"))
         return
 
     async def setup_post_load(self):
         self._world = self.get_world()
-        self._cube = self._world.scene.get_object("fancy_cube")
-
-        # "sim_step" is the name of the event 
-        # "callback_fn" is the callback function
-        self._world.add_physics_callback("sim_step", callback_fn=self.print_cube_info) #callback names have to be unique
-        return
-    # here we define the physics callback to be called before each physics step, all physics callbacks must take
-    # step_size as an argument
-
-    # Tham số này thường là kích thước bước thời gian (time step) của mỗi bước vật lý trong mô phỏng. 
-    # Tuy nhiên, trong ví dụ này, step_size không được sử dụng trực tiếp trong hàm. 
-    def print_cube_info(self, step_size):
-        position, orientation = self._cube.get_world_pose()
-        linear_velocity = self._cube.get_linear_velocity()
-        # will be shown on terminal
-        print("Cube position is : " + str(position))
-        print("Cube's orientation is : " + str(orientation))
-        print("Cube's linear velocity is : " + str(linear_velocity))
-        
-    async def setup_pre_reset(self):
+        self._jetbot = self._world.scene.get_object("fancy_robot")
+        # This is an implicit PD controller of the jetbot/ articulation
+        # setting PD gains, applying actions, switching control modes..etc.
+        # can be done through this controller.
+        # Note: should be only called after the first reset happens to the world
+        self._jetbot_articulation_controller = self._jetbot.get_articulation_controller()
+        # Adding a physics callback to send the actions to apply actions with every
+        # physics step executed.
+        self._world.add_physics_callback("sending_actions", callback_fn=self.send_robot_actions)
         return
 
-    async def setup_post_reset(self):
-        return
-
-    def world_cleanup(self):
+    def send_robot_actions(self, step_size):
+        # Every articulation controller has apply_action method
+        # which takes in ArticulationAction with joint_positions, joint_efforts and joint_velocities
+        # as optional args. It accepts numpy arrays of floats OR lists of floats and None
+        # None means that nothing is applied to this dof index in this step
+        # ALTERNATIVELY, same method is called from self._jetbot.apply_action(...)
+        self._jetbot_articulation_controller.apply_action(ArticulationAction(joint_positions=None,
+                                                                            joint_efforts=None,
+                                                                            joint_velocities=5 * np.random.rand(2,)))
         return
