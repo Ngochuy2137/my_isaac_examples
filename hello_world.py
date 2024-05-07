@@ -5,7 +5,7 @@ from omni.isaac.core.utils.types import ArticulationAction
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.wheeled_robots.robots import WheeledRobot
 # This extension includes several generic controllers that could be used with multiple robots
-from omni.isaac.motion_generation import WheelBasePoseController
+from omni.isaac.wheeled_robots.controllers  import WheelBasePoseController
 # Robot specific controller
 from omni.isaac.wheeled_robots.controllers.differential_controller import DifferentialController
 import numpy as np
@@ -62,6 +62,8 @@ class HelloWorld(BaseSample):
         return
 
     def send_robot_actions(self, step_size):
-        #apply the actions calculated by the controller
-        self._jetbot.apply_action(self._my_controller.forward(command=[0.20, np.pi / 4]))
+        position, orientation = self._jetbot.get_world_pose()
+        self._jetbot.apply_action(self._my_controller.forward(start_position=position,
+                                                            start_orientation=orientation,
+                                                            goal_position=np.array([0.8, 0.8])))
         return
