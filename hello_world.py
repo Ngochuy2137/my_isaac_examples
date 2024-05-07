@@ -1,8 +1,13 @@
 from omni.isaac.examples.base_sample import BaseSample
 from omni.isaac.core.controllers import BaseController
+from omni.isaac.core.utils.types import ArticulationAction
+
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.wheeled_robots.robots import WheeledRobot
-from omni.isaac.core.utils.types import ArticulationAction
+# This extension includes several generic controllers that could be used with multiple robots
+from omni.isaac.motion_generation import WheelBasePoseController
+# Robot specific controller
+from omni.isaac.wheeled_robots.controllers.differential_controller import DifferentialController
 import numpy as np
 
 class CoolController(BaseController):
@@ -48,7 +53,12 @@ class HelloWorld(BaseSample):
         self._jetbot = self._world.scene.get_object("fancy_robot")
         self._world.add_physics_callback("sending_actions", callback_fn=self.send_robot_actions)
         # Initialize our controller after load and the first reset
-        self._my_controller = CoolController()
+        # Initialize our controller after load and the first reset
+        self._my_controller = WheelBasePoseController(name="cool_controller",
+                                                    open_loop_wheel_controller=
+                                                        DifferentialController(name="simple_control",
+                                                                                wheel_radius=0.03, wheel_base=0.1125),
+                                                    is_holonomic=False)
         return
 
     def send_robot_actions(self, step_size):
