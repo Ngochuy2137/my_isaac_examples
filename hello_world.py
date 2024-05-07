@@ -1,9 +1,26 @@
 from omni.isaac.examples.base_sample import BaseSample
+from omni.isaac.core.controllers import BaseController
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.wheeled_robots.robots import WheeledRobot
 from omni.isaac.core.utils.types import ArticulationAction
 import numpy as np
 
+class CoolController(BaseController):
+    def __init__(self):
+        super().__init__(name="my_cool_controller")
+        # An open loop controller that uses a unicycle model
+        self._wheel_radius = 0.03
+        self._wheel_base = 0.1125
+        return
+
+    def forward(self, command):
+        # command will have two elements, first element is the forward velocity
+        # second element is the angular velocity (yaw only).
+        joint_velocities = [0.0, 0.0]
+        joint_velocities[0] = ((2 * command[0]) - (command[1] * self._wheel_base)) / (2 * self._wheel_radius)
+        joint_velocities[1] = ((2 * command[0]) + (command[1] * self._wheel_base)) / (2 * self._wheel_radius)
+        # A controller has to return an ArticulationAction
+        return ArticulationAction(joint_velocities=joint_velocities)
 
 class HelloWorld(BaseSample):
     def __init__(self) -> None:
@@ -30,10 +47,11 @@ class HelloWorld(BaseSample):
         self._world = self.get_world()
         self._jetbot = self._world.scene.get_object("fancy_robot")
         self._world.add_physics_callback("sending_actions", callback_fn=self.send_robot_actions)
+        # Initialize our controller after load and the first reset
+        self._my_controller = CoolController()
         return
 
     def send_robot_actions(self, step_size):
-        self._jetbot.apply_wheel_actions(ArticulationAction(joint_positions=None,
-                                                            joint_efforts=None,
-                                                            joint_velocities=5 * np.random.rand(2,)))
+        #apply the actions calculated by the controller
+        self._jetbot.apply_action(self._my_controller.forward(command=[0.20, np.pi / 4]))
         return
